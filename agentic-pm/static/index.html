@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jan Agentic PM Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        jan: {
+                            primary: '#DB582C',
+                            accent: '#2D78DC',
+                            bg: '#FFFFFF',
+                            dark: '#191919',
+                            container: '#FAFAFA',
+                            'container-dark': '#242424',
+                            text: {
+                                high: '#3D3D3D',
+                                mid: '#808080',
+                                low: '#999999'
+                            },
+                            success: '#1EA458',
+                            warning: '#E8864A',
+                            border: 'rgba(34, 34, 34, 0.06)',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    borderRadius: {
+                        'jan': '0.75rem',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-feature-settings: "cv02", "cv03", "cv04", "cv11"; }
+        
+        .jan-card {
+            background: white;
+            border: 1px solid rgba(34, 34, 34, 0.06);
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .jan-card:hover {
+            border-color: #DB582C;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 4px 20px -4px rgba(219, 88, 44, 0.1);
+        }
+        
+        .status-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #E5E5E5;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-[#FCFCFC] min-h-screen font-sans text-jan-text-high antialiased">
+    <div class="max-w-3xl mx-auto px-5 py-6">
+        <!-- Frosted Glass Header -->
+        <header class="bg-white/80 backdrop-blur-xl border border-jan-border rounded-jan p-5 mb-6 sticky top-4 z-50">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <img src="/static/images/jan-logo.png" class="w-10 h-10 object-contain" alt="Jan">
+                    <h1 class="text-[15px] font-bold tracking-tight">
+                        JAN AGENTIC PM <span class="font-normal text-jan-text-mid">Demo</span>
+                    </h1>
+                </div>
+                <!-- Pill Navigation -->
+                <nav class="flex items-center gap-1 bg-jan-container p-1 rounded-jan border border-jan-border">
+                    <a href="/" class="px-4 py-1.5 text-[11px] font-bold rounded-jan transition-all uppercase tracking-widest bg-white shadow-sm text-jan-text-high">
+                        Activity
+                    </a>
+                    <a href="/gantt" class="px-4 py-1.5 text-[11px] font-bold rounded-jan transition-all uppercase tracking-widest text-jan-text-low hover:text-jan-text-mid">
+                        Gantt
+                    </a>
+                </nav>
+            </div>
+            
+            <!-- Status Bar -->
+            <div class="flex items-center gap-6 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <div id="statusDot" class="w-2 h-2 rounded-full bg-jan-warning status-pulse"></div>
+                    <span id="connectionText" class="text-[11px] font-medium text-jan-text-mid">Connecting...</span>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2">
+                        <span id="totalCount" class="text-[13px] font-bold text-jan-text-high">0</span>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">Total</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="inProgressCount" class="text-[13px] font-bold text-jan-warning">0</span>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">In Progress</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="doneCount" class="text-[13px] font-bold text-jan-success">0</span>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">Done</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Connection Banner -->
+        <div id="connectionBanner" class="hidden mb-4 p-3 rounded-jan border border-jan-primary bg-red-50 text-jan-primary text-[12px] font-medium text-center">
+            Connection lost. Attempting to reconnect...
+        </div>
+
+        <!-- Timeline -->
+        <div id="timeline" class="space-y-3 custom-scrollbar">
+            <!-- Empty State -->
+            <div id="emptyState" class="jan-card p-12 text-center">
+                <div class="text-4xl mb-4">📋</div>
+                <h3 class="text-[13px] font-bold text-jan-text-high mb-2">Waiting for activity...</h3>
+                <p class="text-[12px] text-jan-text-mid">Events will appear here when agents start working</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const timeline = document.getElementById('timeline');
+        const emptyState = document.getElementById('emptyState');
+        const statusDot = document.getElementById('statusDot');
+        const connectionText = document.getElementById('connectionText');
+        const connectionBanner = document.getElementById('connectionBanner');
+        const totalCount = document.getElementById('totalCount');
+        const inProgressCount = document.getElementById('inProgressCount');
+        const doneCount = document.getElementById('doneCount');
+
+        let eventSource = null;
+        let reconnectAttempts = 0;
+        let events = [];
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = (now - date) / 1000;
+
+            if (diff < 60) return 'Just now';
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+            return date.toLocaleDateString();
+        }
+
+        function getEventIcon(type, data) {
+            if (type === 'issue_created') return { class: 'bg-jan-accent', icon: '+' };
+            if (type === 'status_changed') {
+                if (data.new_status === 'Done') return { class: 'bg-jan-success', icon: '✓' };
+                if (data.new_status === 'In Progress') return { class: 'bg-jan-warning', icon: '→' };
+            }
+            if (type === 'comment_added') return { class: 'bg-jan-primary', icon: '💬' };
+            return { class: 'bg-jan-accent', icon: '•' };
+        }
+
+        function getStatusBadge(status) {
+            const statusMap = {
+                'backlog': 'bg-gray-100 text-jan-text-mid',
+                'todo': 'bg-blue-50 text-jan-accent',
+                'in progress': 'bg-orange-50 text-jan-warning',
+                'done': 'bg-emerald-50 text-jan-success'
+            };
+            return statusMap[status?.toLowerCase()] || 'bg-gray-100 text-jan-text-mid';
+        }
+
+        function createEventCard(event) {
+            const { type, timestamp, data } = event;
+            const icon = getEventIcon(type, data);
+
+            let title = '';
+            let details = '';
+            let meta = [];
+
+            if (type === 'issue_created') {
+                title = `Alan created <span class="text-jan-accent font-mono">${data.identifier}</span>`;
+                details = data.title;
+                meta.push(`Priority: ${data.priority}`);
+                if (data.assignee) meta.push(`Assigned: ${data.assignee}`);
+            } else if (type === 'status_changed') {
+                const action = data.new_status === 'Done' ? 'completed' : 
+                              data.new_status === 'In Progress' ? 'started' : 
+                              `moved to ${data.new_status}`;
+                title = `Worker ${action} <span class="text-jan-accent font-mono">${data.identifier}</span>`;
+                details = data.title;
+                if (data.assignee) meta.push(`Worker: ${data.assignee}`);
+            } else if (type === 'comment_added') {
+                title = `Comment on <span class="text-jan-accent font-mono">${data.identifier}</span>`;
+                details = data.body?.substring(0, 100) || '';
+            }
+
+            const card = document.createElement('div');
+            card.className = 'jan-card p-4 pl-14 relative slide-in';
+            card.innerHTML = `
+                <div class="absolute left-4 top-4 w-6 h-6 rounded-full ${icon.class} flex items-center justify-center text-white text-[10px] font-bold">
+                    ${icon.icon}
+                </div>
+                <div class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em] mb-1">${formatTime(timestamp)}</div>
+                <div class="text-[13px] font-bold text-jan-text-high mb-1">${title}</div>
+                <div class="text-[12px] text-jan-text-mid">${details}</div>
+                ${meta.length ? `<div class="flex gap-4 mt-2">${meta.map(m => `<span class="text-[11px] text-jan-text-low">${m}</span>`).join('')}</div>` : ''}
+            `;
+            return card;
+        }
+
+        function addEvent(event) {
+            // Remove empty state
+            if (emptyState && emptyState.parentNode === timeline) {
+                timeline.removeChild(emptyState);
+            }
+
+            events.unshift(event);
+            if (events.length > 50) events.pop();
+
+            const card = createEventCard(event);
+            timeline.insertBefore(card, timeline.firstChild);
+
+            // Keep only last 50 cards
+            while (timeline.children.length > 50) {
+                timeline.removeChild(timeline.lastChild);
+            }
+        }
+
+        async function fetchStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const result = await response.json();
+                if (result.success) {
+                    totalCount.textContent = result.data.total;
+                    inProgressCount.textContent = result.data.in_progress;
+                    doneCount.textContent = result.data.done;
+                }
+            } catch (e) {
+                console.error('Failed to fetch stats:', e);
+            }
+        }
+
+        async function fetchHistory() {
+            try {
+                const response = await fetch('/api/events/history');
+                const result = await response.json();
+                if (result.success && result.data.length > 0) {
+                    // Clear empty state
+                    if (emptyState && emptyState.parentNode === timeline) {
+                        timeline.removeChild(emptyState);
+                    }
+                    // Add historical events (oldest first so newest end up at top)
+                    result.data.forEach(event => {
+                        events.push(event);
+                        const card = createEventCard(event);
+                        timeline.appendChild(card);
+                    });
+                    // Reverse to show newest first
+                    events.reverse();
+                    const cards = Array.from(timeline.children);
+                    cards.reverse().forEach(card => timeline.appendChild(card));
+                }
+            } catch (e) {
+                console.error('Failed to fetch history:', e);
+            }
+        }
+
+        function connect() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource('/api/events');
+
+            eventSource.addEventListener('connected', () => {
+                statusDot.className = 'w-2 h-2 rounded-full bg-jan-success';
+                connectionText.textContent = 'Connected';
+                connectionBanner.classList.add('hidden');
+                reconnectAttempts = 0;
+                fetchStats();
+            });
+
+            eventSource.addEventListener('heartbeat', () => {
+                fetchStats();
+            });
+
+            eventSource.addEventListener('issue_created', (e) => {
+                const event = JSON.parse(e.data);
+                addEvent(event);
+                fetchStats();
+            });
+
+            eventSource.addEventListener('status_changed', (e) => {
+                const event = JSON.parse(e.data);
+                addEvent(event);
+                fetchStats();
+            });
+
+            eventSource.addEventListener('comment_added', (e) => {
+                const event = JSON.parse(e.data);
+                addEvent(event);
+            });
+
+            eventSource.onerror = () => {
+                statusDot.className = 'w-2 h-2 rounded-full bg-jan-primary status-pulse';
+                connectionText.textContent = 'Disconnected';
+                connectionBanner.classList.remove('hidden');
+                
+                eventSource.close();
+                
+                // Exponential backoff reconnect
+                reconnectAttempts++;
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                console.log(`Reconnecting in ${delay}ms...`);
+                setTimeout(connect, delay);
+            };
+        }
+
+        // Initial load
+        fetchHistory();
+        connect();
+
+        // Update timestamps every minute
+        setInterval(() => {
+            document.querySelectorAll('.text-\\[10px\\].font-black').forEach((el, i) => {
+                if (events[i] && el.textContent !== 'TOTAL' && el.textContent !== 'IN PROGRESS' && el.textContent !== 'DONE') {
+                    // Only update timestamp elements
+                }
+            });
+        }, 60000);
+    </script>
+</body>
+</html>

@@ -91,8 +91,10 @@ class LinearDBClient:
         assignee: str | None = None,
         labels: list[str] | None = None,
         priority: int = 3,
+        blocks: list[str] | None = None,
+        blocked_by: list[str] | None = None,
     ) -> dict:
-        """Create a new issue."""
+        """Create a new issue with optional dependencies."""
         args = {"team": team, "title": title, "priority": priority}
         if description:
             args["description"] = description
@@ -100,6 +102,10 @@ class LinearDBClient:
             args["assignee"] = assignee
         if labels:
             args["labels"] = labels
+        if blocks:
+            args["blocks"] = blocks
+        if blocked_by:
+            args["blocked_by"] = blocked_by
         return await self.call_tool("create_issue", args)
     
     async def list_issues(
@@ -107,6 +113,7 @@ class LinearDBClient:
         team: str | None = None,
         assignee: str | None = None,
         state: str | None = None,
+        include_relations: bool = False,
     ) -> dict:
         """List issues with optional filters."""
         args = {}
@@ -116,11 +123,16 @@ class LinearDBClient:
             args["assignee"] = assignee
         if state:
             args["state"] = state
+        if include_relations:
+            args["includeRelations"] = True
         return await self.call_tool("list_issues", args)
     
-    async def get_issue(self, issue_id: str) -> dict:
-        """Get a single issue."""
-        return await self.call_tool("get_issue", {"id": issue_id})
+    async def get_issue(self, issue_id: str, include_relations: bool = False) -> dict:
+        """Get a single issue with optional relations."""
+        args = {"id": issue_id}
+        if include_relations:
+            args["includeRelations"] = True
+        return await self.call_tool("get_issue", args)
     
     async def update_issue(
         self,

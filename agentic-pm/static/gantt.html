@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gantt Chart | Jan Agentic PM Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        jan: {
+                            primary: '#DB582C',
+                            accent: '#2D78DC',
+                            bg: '#FFFFFF',
+                            dark: '#191919',
+                            container: '#FAFAFA',
+                            'container-dark': '#242424',
+                            text: {
+                                high: '#3D3D3D',
+                                mid: '#808080',
+                                low: '#999999'
+                            },
+                            success: '#1EA458',
+                            warning: '#E8864A',
+                            border: 'rgba(34, 34, 34, 0.06)',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    borderRadius: {
+                        'jan': '0.75rem',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-feature-settings: "cv02", "cv03", "cv04", "cv11"; }
+        
+        .jan-card {
+            background: white;
+            border: 1px solid rgba(34, 34, 34, 0.06);
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        }
+        
+        .gantt-bar {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .gantt-bar:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .gantt-bar.blocked {
+            opacity: 0.7;
+            background-image: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 4px,
+                rgba(255, 255, 255, 0.15) 4px,
+                rgba(255, 255, 255, 0.15) 8px
+            );
+        }
+        
+        .graph-node {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .graph-node:hover {
+            transform: scale(1.03);
+            z-index: 10;
+        }
+        
+        .arrow-line {
+            stroke: #DB582C;
+            stroke-width: 2;
+            fill: none;
+            marker-end: url(#arrowhead);
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #E5E5E5;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-[#FCFCFC] min-h-screen font-sans text-jan-text-high antialiased">
+    <div class="max-w-6xl mx-auto px-5 py-6">
+        <!-- Frosted Glass Header -->
+        <header class="bg-white/80 backdrop-blur-xl border border-jan-border rounded-jan p-5 mb-6 sticky top-4 z-50">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <img src="/static/images/jan-logo.png" class="w-10 h-10 object-contain" alt="Jan">
+                    <h1 class="text-[15px] font-bold tracking-tight">
+                        JAN AGENTIC PM <span class="font-normal text-jan-text-mid">Demo</span>
+                    </h1>
+                </div>
+                <!-- Pill Navigation -->
+                <nav class="flex items-center gap-1 bg-jan-container p-1 rounded-jan border border-jan-border">
+                    <a href="/" class="px-4 py-1.5 text-[11px] font-bold rounded-jan transition-all uppercase tracking-widest text-jan-text-low hover:text-jan-text-mid">
+                        Activity
+                    </a>
+                    <a href="/gantt" class="px-4 py-1.5 text-[11px] font-bold rounded-jan transition-all uppercase tracking-widest bg-white shadow-sm text-jan-text-high">
+                        Gantt
+                    </a>
+                </nav>
+            </div>
+        </header>
+        
+        <!-- Timeline View Section -->
+        <section class="jan-card p-6 mb-6">
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="text-[13px] font-bold text-jan-text-high uppercase tracking-wide">Timeline View</h2>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded bg-jan-text-low"></div>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">Backlog</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded bg-jan-accent"></div>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">Todo</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded bg-jan-warning"></div>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">In Progress</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded bg-jan-success"></div>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">Done</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded bg-gradient-to-r from-jan-text-low to-gray-400" style="background-image: repeating-linear-gradient(45deg, #808080, #808080 2px, #a0a0a0 2px, #a0a0a0 4px);"></div>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">Blocked</span>
+                    </div>
+                </div>
+            </div>
+            <div id="gantt-chart" class="bg-jan-container rounded-jan border border-jan-border min-h-[300px] overflow-hidden custom-scrollbar">
+                <div class="flex items-center justify-center h-48 text-jan-text-mid text-[12px]">Loading timeline...</div>
+            </div>
+        </section>
+        
+        <!-- Dependency Graph Section -->
+        <section class="jan-card p-6">
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="text-[13px] font-bold text-jan-text-high uppercase tracking-wide">Dependency Graph</h2>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <svg width="20" height="12">
+                            <line x1="0" y1="6" x2="16" y2="6" stroke="#DB582C" stroke-width="2"/>
+                            <polygon points="14,3 20,6 14,9" fill="#DB582C"/>
+                        </svg>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">Blocks</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="px-1.5 py-0.5 bg-jan-success text-white text-[9px] font-black rounded">∥</div>
+                        <span class="text-[10px] font-black text-jan-text-low uppercase tracking-[0.1em]">Parallel</span>
+                    </div>
+                </div>
+            </div>
+            <div id="dependency-graph" class="bg-jan-container rounded-jan border border-jan-border h-[400px] relative overflow-hidden">
+                <svg class="arrows absolute inset-0 w-full h-full pointer-events-none">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#DB582C"/>
+                        </marker>
+                    </defs>
+                </svg>
+                <div class="flex items-center justify-center h-full text-jan-text-mid text-[12px]">Loading dependencies...</div>
+            </div>
+        </section>
+    </div>
+    
+    <script>
+        let ganttData = { nodes: [], edges: [] };
+        
+        const statusColors = {
+            'backlog': { bg: '#808080', text: 'white' },
+            'todo': { bg: '#2D78DC', text: 'white' },
+            'in progress': { bg: '#E8864A', text: 'white' },
+            'done': { bg: '#1EA458', text: 'white' }
+        };
+        
+        function getStatusColor(status) {
+            const key = (status || 'backlog').toLowerCase();
+            return statusColors[key] || statusColors['backlog'];
+        }
+        
+        async function fetchGanttData() {
+            try {
+                const response = await fetch('/api/gantt');
+                const result = await response.json();
+                if (result.success) {
+                    ganttData = result.data;
+                    renderGanttChart();
+                    renderDependencyGraph();
+                } else {
+                    showError(result.error);
+                }
+            } catch (e) {
+                showError(e.message);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('gantt-chart').innerHTML = `
+                <div class="flex flex-col items-center justify-center h-48 text-jan-text-mid">
+                    <div class="text-2xl mb-2">⚠️</div>
+                    <p class="text-[12px]">${message}</p>
+                </div>
+            `;
+        }
+        
+        function renderGanttChart() {
+            const container = document.getElementById('gantt-chart');
+            const nodes = ganttData.nodes;
+            const edges = ganttData.edges;
+            
+            if (nodes.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-48 text-jan-text-mid">
+                        <div class="text-2xl mb-2">📋</div>
+                        <p class="text-[13px] font-bold text-jan-text-high mb-1">No issues yet</p>
+                        <p class="text-[12px]">Create some issues to see them here</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Build blocking map
+            const blockedBy = new Map();
+            edges.forEach(edge => {
+                if (!blockedBy.has(edge.to)) blockedBy.set(edge.to, []);
+                blockedBy.get(edge.to).push(edge.from);
+            });
+            
+            // Sort by: blocked items last, then by priority
+            const sorted = [...nodes].sort((a, b) => {
+                const aBlocked = blockedBy.has(a.id);
+                const bBlocked = blockedBy.has(b.id);
+                if (aBlocked !== bBlocked) return aBlocked ? 1 : -1;
+                return a.priority - b.priority;
+            });
+            
+            let html = '';
+            sorted.forEach((node) => {
+                const isBlocked = blockedBy.has(node.id);
+                const blockers = blockedBy.get(node.id) || [];
+                const blockerIds = blockers.map(bid => {
+                    const blocker = nodes.find(n => n.id === bid);
+                    return blocker ? blocker.identifier : bid;
+                }).join(', ');
+                
+                const barWidth = 50 + (4 - node.priority) * 25;
+                const color = getStatusColor(node.status || node.status_type);
+                
+                html += `
+                    <div class="flex items-center border-b border-jan-border hover:bg-white/50 transition-colors">
+                        <div class="w-64 flex-shrink-0 p-4 border-r border-jan-border">
+                            <div class="text-[11px] font-bold text-jan-accent">${node.identifier}</div>
+                            <div class="text-[12px] font-semibold text-jan-text-high truncate" title="${node.title}">${node.title}</div>
+                            <div class="text-[10px] text-jan-text-low mt-1">${node.assignee}${isBlocked ? ` · <span class="text-jan-primary">Blocked by: ${blockerIds}</span>` : ''}</div>
+                        </div>
+                        <div class="flex-1 p-3">
+                            <div class="gantt-bar ${isBlocked ? 'blocked' : ''} h-8 rounded-jan flex items-center px-3 text-[11px] font-bold cursor-pointer" 
+                                 style="background-color: ${color.bg}; color: ${color.text}; width: ${barWidth}%;">
+                                ${node.status || node.status_type}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function renderDependencyGraph() {
+            const container = document.getElementById('dependency-graph');
+            const svg = container.querySelector('svg.arrows');
+            const nodes = ganttData.nodes;
+            const edges = ganttData.edges;
+            
+            // Clear existing content except SVG
+            container.querySelectorAll('.graph-node').forEach(el => el.remove());
+            svg.querySelectorAll('.arrow-line').forEach(el => el.remove());
+            
+            if (nodes.length === 0) {
+                container.innerHTML = `
+                    <svg class="arrows absolute inset-0 w-full h-full pointer-events-none">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#DB582C"/>
+                            </marker>
+                        </defs>
+                    </svg>
+                    <div class="flex flex-col items-center justify-center h-full text-jan-text-mid">
+                        <div class="text-2xl mb-2">🔗</div>
+                        <p class="text-[13px] font-bold text-jan-text-high mb-1">No dependencies</p>
+                        <p class="text-[12px]">Dependencies will appear here when issues block each other</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Build dependency maps
+            const blocks = new Map();
+            const blockedBy = new Map();
+            
+            edges.forEach(edge => {
+                if (!blocks.has(edge.from)) blocks.set(edge.from, []);
+                blocks.get(edge.from).push(edge.to);
+                
+                if (!blockedBy.has(edge.to)) blockedBy.set(edge.to, []);
+                blockedBy.get(edge.to).push(edge.from);
+            });
+            
+            // Calculate levels (topological sort)
+            const levels = new Map();
+            const visited = new Set();
+            
+            function getLevel(nodeId) {
+                if (levels.has(nodeId)) return levels.get(nodeId);
+                if (visited.has(nodeId)) return 0;
+                visited.add(nodeId);
+                
+                const deps = blockedBy.get(nodeId) || [];
+                let maxDepLevel = -1;
+                deps.forEach(depId => {
+                    maxDepLevel = Math.max(maxDepLevel, getLevel(depId));
+                });
+                
+                const level = maxDepLevel + 1;
+                levels.set(nodeId, level);
+                return level;
+            }
+            
+            nodes.forEach(node => getLevel(node.id));
+            
+            // Group by level
+            const levelGroups = new Map();
+            nodes.forEach(node => {
+                const level = levels.get(node.id) || 0;
+                if (!levelGroups.has(level)) levelGroups.set(level, []);
+                levelGroups.get(level).push(node);
+            });
+            
+            // Position nodes
+            const nodePositions = new Map();
+            const containerRect = container.getBoundingClientRect();
+            const width = containerRect.width || 800;
+            const height = containerRect.height || 400;
+            
+            const maxLevel = Math.max(...levels.values(), 0);
+            const levelWidth = width / (maxLevel + 2);
+            
+            levelGroups.forEach((group, level) => {
+                const nodeHeight = height / (group.length + 1);
+                group.forEach((node, idx) => {
+                    nodePositions.set(node.id, {
+                        x: 40 + level * levelWidth,
+                        y: (idx + 1) * nodeHeight - 35,
+                    });
+                });
+            });
+            
+            // Render nodes
+            nodes.forEach(node => {
+                const pos = nodePositions.get(node.id);
+                if (!pos) return;
+                
+                const isParallel = !blockedBy.has(node.id) && (levels.get(node.id) || 0) === 0;
+                const hasNoDeps = !blockedBy.has(node.id) && !blocks.has(node.id);
+                const color = getStatusColor(node.status || node.status_type);
+                
+                const nodeEl = document.createElement('div');
+                nodeEl.className = 'graph-node absolute p-3 rounded-jan text-white cursor-pointer shadow-md min-w-[130px] text-center';
+                nodeEl.style.cssText = `
+                    left: ${pos.x}px;
+                    top: ${pos.y}px;
+                    background-color: ${color.bg};
+                `;
+                nodeEl.innerHTML = `
+                    <div class="text-[11px] font-bold mb-1">${node.identifier}</div>
+                    <div class="text-[10px] opacity-90 truncate max-w-[110px]">${node.title}</div>
+                    <div class="inline-block mt-2 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider" style="background: rgba(0,0,0,0.2);">
+                        ${node.status || node.status_type}
+                    </div>
+                    ${isParallel && !hasNoDeps ? '<div class="absolute -top-2 -right-2 w-5 h-5 bg-jan-success text-white text-[9px] font-black rounded-full flex items-center justify-center">∥</div>' : ''}
+                `;
+                container.appendChild(nodeEl);
+            });
+            
+            // Render edges
+            edges.forEach(edge => {
+                const fromPos = nodePositions.get(edge.from);
+                const toPos = nodePositions.get(edge.to);
+                if (!fromPos || !toPos) return;
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                
+                const startX = fromPos.x + 65;
+                const startY = fromPos.y + 35;
+                const endX = toPos.x;
+                const endY = toPos.y + 35;
+                const midX = (startX + endX) / 2;
+                
+                const d = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
+                
+                line.setAttribute('d', d);
+                line.setAttribute('class', 'arrow-line');
+                svg.appendChild(line);
+            });
+        }
+        
+        // Initial load
+        fetchGanttData();
+        
+        // Auto-refresh every 5 seconds
+        setInterval(fetchGanttData, 5000);
+    </script>
+</body>
+</html>

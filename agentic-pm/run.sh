@@ -36,6 +36,16 @@ case "${1:-help}" in
         python worker.py "$@"
         ;;
     
+    dashboard)
+        # Dashboard: Real-time activity feed
+        # Usage: bash run.sh dashboard [--port 8888]
+        PORT="${2:-8888}"
+        echo "=== Jan Agentic PM Dashboard ==="
+        echo "Starting on http://localhost:$PORT"
+        echo ""
+        python -m uvicorn dashboard:app --host 0.0.0.0 --port "$PORT" --reload
+        ;;
+    
     demo)
         # Run a demo: Alan creates tasks, workers execute
         echo "=== Agentic PM Demo ==="
@@ -59,12 +69,14 @@ case "${1:-help}" in
         echo "Commands:"
         echo "  alan <prd> [workers]    Alan breaks down PRD into tasks"
         echo "  worker <email> [opts]   Worker executes assigned tasks"
+        echo "  dashboard [--port N]    Live activity feed (default: 8888)"
         echo "  demo                    Run demo workflow"
         echo ""
         echo "Examples:"
         echo "  bash run.sh alan 'Build a REST API' worker1@local,worker2@local"
         echo "  bash run.sh worker worker1@local --loop"
         echo "  bash run.sh worker worker1@local --dir /path/to/workspace"
+        echo "  bash run.sh dashboard"
         echo ""
         echo "Prerequisites:"
         echo "  1. Linear DB MCP server running: cd sqlite-mcp-server && PORT=3335 npm run dev"

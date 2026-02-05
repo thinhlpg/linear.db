@@ -1,16 +1,49 @@
-# Agentic PM
+# Jan Agentic PM Demo
 
-Multi-agent orchestration using Linear DB as the coordination layer.
+Multi-agent orchestration with a live dashboard, using Linear DB as the coordination layer.
 
-## Overview
+## Features
 
-Two AI agents collaborate to complete tasks:
+- **Multi-Agent System**: Alan (PM) creates tasks, Workers execute them
+- **Live Dashboard**: Real-time activity feed with Jan identity styling
+- **Gantt Chart**: Timeline view with dependency visualization
+- **Dependency Graph**: See which tasks block others and what can run in parallel
+
+## Quick Start
+
+### 1. Start Linear DB MCP Server
+
+```bash
+cd ../sqlite-mcp-server
+npm install && npm run init-db
+PORT=3335 npm run dev
+```
+
+### 2. Start Dashboard
+
+```bash
+cd agentic-pm
+bash run.sh dashboard
+# Open http://localhost:8888
+```
+
+### 3. Run Agents
+
+```bash
+# Alan: Create tasks from PRD
+bash run.sh alan "Build a bouncing ball HTML file" worker1@local
+
+# Worker: Execute assigned tasks  
+bash run.sh worker worker1@local --dir ./workspace
+```
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  ALAN (PM Agent)                                                │
 │  • Analyzes PRDs using Claude                                   │
-│  • Creates minimal, atomic tasks                                │
+│  • Creates minimal, atomic tasks with dependencies              │
 │  • Assigns to workers (round-robin)                             │
 └─────────────────────────────┬───────────────────────────────────┘
                               │ creates issues
@@ -19,58 +52,40 @@ Two AI agents collaborate to complete tasks:
 │  LINEAR DB (../sqlite-mcp-server)                               │
 │  • Single source of truth for tasks                             │
 │  • Status: Backlog → In Progress → Done                         │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │ polls for tasks
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  WORKER (Developer Agent)                                       │
-│  • Polls for assigned tasks                                     │
-│  • Executes using Claude Agent SDK                              │
-│  • Updates status and adds result comments                      │
-└─────────────────────────────────────────────────────────────────┘
+│  • Supports blocking relationships (blocks/blocked_by)          │
+└──────────────┬──────────────────────────────────┬───────────────┘
+               │ polls for tasks                  │ API
+               ▼                                  ▼
+┌──────────────────────────────┐  ┌───────────────────────────────┐
+│  WORKER (Developer Agent)    │  │  DASHBOARD (FastAPI)          │
+│  • Polls for assigned tasks  │  │  • Live activity feed (SSE)   │
+│  • Executes via Claude SDK   │  │  • Gantt chart timeline       │
+│  • Updates status + comments │  │  • Dependency visualization   │
+└──────────────────────────────┘  └───────────────────────────────┘
 ```
 
-## Quick Start
-
-### Prerequisites
-
-1. Linear DB MCP server running (from parent directory):
-   ```bash
-   cd ../sqlite-mcp-server
-   npm install && npm run init-db
-   PORT=3335 npm run dev
-   ```
-
-2. `ANTHROPIC_API_KEY` set in environment
-
-### Run
-
-```bash
-# Install dependencies
-bash run.sh help
-
-# Alan: Create tasks from PRD
-bash run.sh alan "Build a single HTML file with a bouncing ball" worker1@local
-
-# Worker: Execute assigned tasks
-bash run.sh worker worker1@local --dir ./workspace
-```
-
-## Architecture
+## Components
 
 | Component | File | Purpose |
 |-----------|------|---------|
 | Alan | `alan.py` | PM agent - PRD → tasks |
 | Worker | `worker.py` | Developer agent - executes tasks |
+| Dashboard | `dashboard.py` | Live UI with activity feed + Gantt |
 | Linear Client | `linear_client.py` | HTTP client for Linear DB MCP |
 | Config | `config.py` | Environment configuration |
 
-## Documentation
+## Dashboard
 
-- [Architecture](docs/architecture.md) - System design and data flow
-- [API Reference](docs/api.md) - Function documentation
-- [Configuration](docs/configuration.md) - Environment variables
-- [Troubleshooting](docs/troubleshooting.md) - Common issues
+Access at `http://localhost:8888` after running `bash run.sh dashboard`.
+
+### Activity Feed (`/`)
+- Real-time SSE updates when issues are created or status changes
+- Shows connected status, total/in-progress/done counts
+
+### Gantt Chart (`/gantt`)
+- **Timeline View**: Issues as bars, color-coded by status
+- **Dependency Graph**: Visual DAG showing blocking relationships
+- **Parallel Tasks**: Highlighted tasks that can run simultaneously
 
 ## Configuration
 
@@ -81,18 +96,20 @@ bash run.sh worker worker1@local --dir ./workspace
 | `POLL_INTERVAL` | `5` | Worker polling interval (seconds) |
 | `CLAUDE_MODEL` | `sonnet` | Claude model for workers |
 
-## Example
+## Example Workflow
 
 ```bash
-# Terminal 1: Start Linear DB
+# Terminal 1: Linear DB
 cd ../sqlite-mcp-server && PORT=3335 npm run dev
 
-# Terminal 2: Alan creates tasks
-cd ../agentic-pm
-bash run.sh alan "Build HTML Flappy Bird game with bird, pipes, score, game over screen" worker1@local
+# Terminal 2: Dashboard
+cd ../agentic-pm && bash run.sh dashboard
 
-# Terminal 3: Worker executes
+# Terminal 3: Alan creates tasks
+bash run.sh alan "Build HTML Flappy Bird with bird, pipes, score" worker1@local
+
+# Terminal 4: Worker executes
 bash run.sh worker worker1@local --dir ./workspace
 
-# Result: workspace/index.html contains the game
+# Watch the dashboard update in real-time!
 ```
