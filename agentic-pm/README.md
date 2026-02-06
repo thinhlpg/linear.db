@@ -5,6 +5,7 @@ Multi-agent orchestration with a live dashboard, using Linear DB as the coordina
 ## Features
 
 - **Multi-Agent System**: Alan (PM) creates tasks, Workers execute them
+- **Agent Teams (Experimental)**: Claude Code native parallel multi-agent execution
 - **Live Dashboard**: Real-time activity feed with Jan identity styling
 - **Gantt Chart**: Timeline view with dependency visualization
 - **Dependency Graph**: See which tasks block others and what can run in parallel
@@ -70,9 +71,42 @@ bash run.sh worker worker1@local --dir ./workspace
 |-----------|------|---------|
 | Alan | `alan.py` | PM agent - PRD → tasks |
 | Worker | `worker.py` | Developer agent - executes tasks |
+| Agent Teams | `teams.py` | Claude Code native multi-agent execution |
 | Dashboard | `dashboard.py` | Live UI with activity feed + Gantt |
 | Linear Client | `linear_client.py` | HTTP client for Linear DB MCP |
 | Config | `config.py` | Environment configuration |
+
+## Agent Teams (Experimental)
+
+Uses Claude Code's experimental Agent Teams feature for native parallel multi-agent execution.
+
+### Enable
+
+```bash
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+Or add to `.env`:
+```
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+### Usage
+
+```bash
+# Run with Agent Teams
+bash run.sh teams "Build a Flappy Bird HTML game"
+
+# With custom workspace
+bash run.sh teams "Build a REST API" ./my-workspace
+```
+
+### How It Works
+
+1. Agent Teams spawns multiple parallel Claude Code sessions
+2. PM agent coordinates work breakdown
+3. Worker agents execute tasks in parallel
+4. Status synced to Linear DB for dashboard visualization
 
 ## Dashboard
 
@@ -95,6 +129,7 @@ Access at `http://localhost:8888` after running `bash run.sh dashboard`.
 | `TEAM_KEY` | `AGT` | Team identifier |
 | `POLL_INTERVAL` | `5` | Worker polling interval (seconds) |
 | `CLAUDE_MODEL` | `sonnet` | Claude model for workers |
+| `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `0` | Enable Agent Teams (set to `1`) |
 
 ## Example Workflow
 

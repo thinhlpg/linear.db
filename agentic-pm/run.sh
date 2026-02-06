@@ -46,6 +46,33 @@ case "${1:-help}" in
         python -m uvicorn dashboard:app --host 0.0.0.0 --port "$PORT" --reload
         ;;
     
+    teams)
+        # Agent Teams: Multi-agent execution via Claude Code native teams
+        # Usage: bash run.sh teams "PRD text" [working_dir]
+        shift
+        export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+        python teams.py "$@"
+        ;;
+    
+    tickets)
+        # Show all tickets in ASCII table
+        # Usage: bash run.sh tickets
+        python tickets_ascii.py list
+        ;;
+    
+    summary)
+        # Show progress summary
+        # Usage: bash run.sh summary
+        python tickets_ascii.py summary
+        ;;
+    
+    show)
+        # Show ticket details
+        # Usage: bash run.sh show AGT-1
+        shift
+        python tickets_ascii.py show "$@"
+        ;;
+    
     demo)
         # Run a demo: Alan creates tasks, workers execute
         echo "=== Agentic PM Demo ==="
@@ -69,6 +96,10 @@ case "${1:-help}" in
         echo "Commands:"
         echo "  alan <prd> [workers]    Alan breaks down PRD into tasks"
         echo "  worker <email> [opts]   Worker executes assigned tasks"
+        echo "  teams <prd> [dir]       Agent Teams multi-agent execution (experimental)"
+        echo "  tickets                 List all tickets (ASCII)"
+        echo "  summary                 Show progress summary (ASCII)"
+        echo "  show <ID>               Show ticket details (e.g., AGT-1)"
         echo "  dashboard [--port N]    Live activity feed (default: 8888)"
         echo "  demo                    Run demo workflow"
         echo ""
@@ -76,6 +107,7 @@ case "${1:-help}" in
         echo "  bash run.sh alan 'Build a REST API' worker1@local,worker2@local"
         echo "  bash run.sh worker worker1@local --loop"
         echo "  bash run.sh worker worker1@local --dir /path/to/workspace"
+        echo "  bash run.sh teams 'Build a Flappy Bird HTML game'"
         echo "  bash run.sh dashboard"
         echo ""
         echo "Prerequisites:"
