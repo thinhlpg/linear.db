@@ -39,12 +39,62 @@ Project: "Feature Name"
 └── Issue 5: Integration (blocked_by: Issues 2,3,4)
 ```
 
-### Team Members
-- `user_thinh` - Thinh (frontend lead)
-- `user_dev2` - Dev2
-- `user_dev3` - Dev3
+### Team Members & Roles
+| User ID | Name | Role | Responsibility |
+|---------|------|------|----------------|
+| `user_thinh` | Thinh | Frontend Lead | Architecture, core components |
+| `user_dev2` | Dev2 | Developer | Feature implementation |
+| `user_dev3` | Dev3 | Developer | Feature implementation |
+| `user_tester` | Tester | QA Engineer | **Playwright E2E testing** |
+
+### 🧪 MANDATORY: Testing with Playwright
+
+**After ANY implementation is marked "Done", a TEST issue MUST be created and assigned to Tester.**
+
+#### Testing Workflow
+```
+1. Developer marks implementation issue as "Done"
+2. Create TEST issue: "Test: [Feature Name]" → Assign to user_tester
+3. Tester uses Playwright to verify functionality
+4. If PASS → Mark test issue "Done"
+5. If FAIL → Create BUG issue, link to original, reopen implementation
+```
+
+#### Test Issue Template
+```
+Title: Test: [Component/Feature Name]
+Description:
+- What to test: [specific functionality]
+- Expected behavior: [what should happen]
+- Test scenarios:
+  1. [Scenario 1]
+  2. [Scenario 2]
+  3. [Edge case]
+Assignee: user_tester
+Blocked by: [implementation issue ID]
+```
+
+#### Playwright Test Requirements
+- Use `playwright` MCP tool or browser automation
+- Test all user interactions (clicks, inputs, navigation)
+- Verify visual elements render correctly
+- Check responsive behavior
+- Screenshot failures for bug reports
+
+### Issue Structure with Testing
+```
+Project: "Feature Name"
+├── Issue 1: Setup/Foundation (assignee: Thinh)
+├── Issue 2: Component A (assignee: Dev2, blocked_by: 1)
+├── Issue 3: Component B (assignee: Dev3, blocked_by: 1)
+├── Issue 4: Integration (assignee: Thinh, blocked_by: 2,3)
+├── Issue 5: Test: Component A (assignee: Tester, blocked_by: 2) ← TEST
+├── Issue 6: Test: Component B (assignee: Tester, blocked_by: 3) ← TEST
+└── Issue 7: Test: Full Integration (assignee: Tester, blocked_by: 4) ← TEST
+```
 
 **DO NOT start coding without creating issues first. Track ALL work in Linear DB.**
+**DO NOT mark feature "Complete" until Tester has verified with Playwright.**
 
 ---
 
