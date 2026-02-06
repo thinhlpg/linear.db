@@ -2,6 +2,52 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚨 MANDATORY: Use Linear DB for Project Management
+
+**You MUST proactively use the `linear-sqlite` MCP server for ALL project management tasks.**
+
+### When to Create Issues (ALWAYS)
+- Starting ANY new feature or task → Create issue first
+- Breaking down complex work → Create multiple issues with dependencies
+- Found a bug → Create issue before fixing
+- Planning implementation → Create issues for each component
+
+### Workflow Pattern
+```
+1. BEFORE coding: Create project + issues in linear-sqlite
+2. DURING coding: Update issue status (Todo → In Progress → Done)
+3. AFTER coding: Mark issues as Done, add comments if needed
+```
+
+### Required MCP Tools Usage
+| Action | Tool | Example |
+|--------|------|---------|
+| Create project | `create_project` | New feature work |
+| Create issue | `create_issue` | Each task/component |
+| Update status | `update_issue` | Progress tracking |
+| List issues | `list_issues` | Check current work |
+| Search | `search_issues` | Find related work |
+
+### Issue Structure for Multi-Component Work
+When building something with multiple parts:
+```
+Project: "Feature Name"
+├── Issue 1: Setup/Foundation (blocked_by: none)
+├── Issue 2: Component A (blocked_by: Issue 1)
+├── Issue 3: Component B (blocked_by: Issue 1)
+├── Issue 4: Component C (blocked_by: Issue 1)
+└── Issue 5: Integration (blocked_by: Issues 2,3,4)
+```
+
+### Team Members
+- `user_thinh` - Thinh (frontend lead)
+- `user_dev2` - Dev2
+- `user_dev3` - Dev3
+
+**DO NOT start coding without creating issues first. Track ALL work in Linear DB.**
+
+---
+
 ## Project Overview
 
 This repository contains a SQLite schema (`linear_schema.sql`) that mimics Linear's ticketing system data model. The schema was reverse-engineered from Linear's GraphQL API and is designed for local development, testing, and prototyping without requiring Linear API access.
@@ -45,14 +91,29 @@ The schema follows a normalized relational design with these key patterns:
 
 ## Available MCP Tools
 
-Two MCP servers are configured for this project:
-
 | Server | Tools | Purpose |
 |--------|-------|---------|
-| **Linear** (`mcp__plugin_linear_linear__*`) | Issues, Projects, Teams, Labels, Cycles, Initiatives, Documents, Comments, Attachments | Programmatic access to Linear's API |
-| **Exa** (`mcp__exa__*`) | Web search, code context retrieval | Research and documentation lookup |
+| **linear-sqlite** | `list_teams`, `list_projects`, `list_issues`, `get_issue`, `create_project`, `create_issue`, `update_issue`, `search_issues`, `get_issue_statuses` | **PRIMARY PM tool** - Local SQLite Linear DB |
+| **serper-search** | `google_search`, `scrape` | Web search for documentation |
 
-See `LINEAR_MCP.md` for full API documentation.
+### linear-sqlite Tool Reference
+
+```
+# Project Management
+create_project(team_id, name, description?, state?)
+list_projects(team_id?)
+
+# Issue Management  
+create_issue(team_id, title, description?, assignee_id?, priority?, status_id?, project_id?)
+update_issue(issue_id, title?, description?, assignee_id?, priority?, status_id?)
+list_issues(team_id?, project_id?, assignee_id?, status?, limit?)
+get_issue(issue_id)
+search_issues(query, team_id?, limit?)
+
+# Reference Data
+list_teams()
+get_issue_statuses(team_id)
+```
 
 ## Common Queries
 
