@@ -1,7 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import express from "express";
 import { randomUUID } from "crypto";
 import { initializeDatabase } from "./schema.js";
 // Import tool handlers - each module exports its tools and a registration function
@@ -14,8 +14,6 @@ import { registerCommentTools, getCommentTools } from "./tools/comments.js";
 import { registerUserTools, getUserTools } from "./tools/users.js";
 // Initialize database schema
 initializeDatabase();
-// Create MCP server
-const server = new Server({ name: "linear-sqlite-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
 // All registered tool handlers
 const toolHandlers = {};
 function registerToolHandler(name, handler) {
@@ -39,126 +37,107 @@ const allTools = [
     ...getCommentTools(),
     ...getUserTools(),
 ];
-// Set up request handlers
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: allTools,
-}));
-server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-    const { name, arguments: args } = request.params;
-    const handler = toolHandlers[name];
-    if (!handler) {
-        return {
-            content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${name}` }, null, 2) }],
-            isError: true,
-        };
-    }
-    try {
-        const result = await handler(args || {});
-        return {
-            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        };
-    }
-    catch (error) {
-        return {
-            content: [{ type: "text", text: JSON.stringify({ error: error.message }, null, 2) }],
-            isError: true,
-        };
-    }
-});
-const sessions = new Map();
-const SESSION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-// Create Express app
-const app = express();
-app.use(express.json());
+// Function to create a new MCP server instance
+function createServer() {
+    const server = new Server({ name: "linear-sqlite-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
+    // Set up request handlers
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+        tools: allTools,
+    }));
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+        const { name, arguments: args } = request.params;
+        const handler = toolHandlers[name];
+        if (!handler) {
+            return {
+                content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${name}` }, null, 2) }],
+                isError: true,
+            };
+        }
+        try {
+            const result = await handler(args || {});
+            return {
+                content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            };
+        }
+        catch (error) {
+            return {
+                content: [{ type: "text", text: JSON.stringify({ error: error.message }, null, 2) }],
+                isError: true,
+            };
+        }
+    });
+    return server;
+}
+// Create Express app with DNS rebinding protection
+const app = createMcpExpressApp();
 // Health check endpoint
 app.get("/health", (_req, res) => {
     res.json({ status: "ok", server: "linear-sqlite-mcp" });
 });
-// MCP endpoint - handle both GET (for SSE-like streaming) and POST
-app.all("/mcp", async (req, res) => {
+// Session management - store transports by session ID
+const transports = {};
+// MCP endpoint - POST for client-to-server messages
+app.post("/mcp", async (req, res) => {
     const sessionId = req.headers["mcp-session-id"];
-    // Handle initialization
-    if (req.body?.method === "initialize") {
+    try {
+        // Reuse existing session if available
+        if (sessionId && transports[sessionId]) {
+            await transports[sessionId].transport.handleRequest(req, res, req.body);
+            return;
+        }
+        // Create new session for any request (auto-initialize mode)
         const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
+            enableJsonResponse: true,
+            onsessioninitialized: (sid) => {
+                transports[sid] = { transport, server };
+            },
         });
-        const newSessionId = transport.sessionId ?? randomUUID();
-        sessions.set(newSessionId, {
-            transport,
-            lastActivity: Date.now(),
-        });
-        // Handle session cleanup on close
         transport.onclose = () => {
-            sessions.delete(newSessionId);
+            const sid = transport.sessionId;
+            if (sid && transports[sid]) {
+                delete transports[sid];
+            }
         };
+        const server = createServer();
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);
-        return;
     }
-    // Handle subsequent requests with session ID
-    if (sessionId && sessions.has(sessionId)) {
-        const session = sessions.get(sessionId);
-        session.lastActivity = Date.now();
-        await session.transport.handleRequest(req, res, req.body);
-        return;
-    }
-    // Stateless mode: process request directly without MCP transport
-    if (!sessionId && req.body?.method && req.body.method !== "initialize") {
-        const method = req.body.method;
-        const requestId = req.body.id;
-        try {
-            let result;
-            if (method === "tools/list") {
-                result = { tools: allTools };
-            }
-            else if (method === "tools/call") {
-                const { name, arguments: args } = req.body.params || {};
-                const handler = toolHandlers[name];
-                if (!handler) {
-                    result = {
-                        content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${name}` }, null, 2) }],
-                        isError: true,
-                    };
-                }
-                else {
-                    try {
-                        const data = await handler(args || {});
-                        result = { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
-                    }
-                    catch (error) {
-                        result = {
-                            content: [{ type: "text", text: JSON.stringify({ error: error.message }, null, 2) }],
-                            isError: true,
-                        };
-                    }
-                }
-            }
-            else {
-                result = { error: `Unknown method: ${method}` };
-            }
-            res.json({ jsonrpc: "2.0", id: requestId, ...result });
+    catch (error) {
+        console.error("Error handling MCP request:", error);
+        if (!res.headersSent) {
+            res.status(500).json({
+                jsonrpc: "2.0",
+                error: { code: -32603, message: error.message || "Internal server error" },
+                id: null,
+            });
         }
-        catch (error) {
-            res.status(500).json({ jsonrpc: "2.0", id: req.body.id, error: { message: error.message } });
-        }
-        return;
     }
-    res.status(400).json({ error: "Invalid request" });
 });
-// Session cleanup interval
-setInterval(() => {
-    const now = Date.now();
-    for (const [sessionId, session] of sessions.entries()) {
-        if (now - session.lastActivity > SESSION_TIMEOUT) {
-            session.transport.close();
-            sessions.delete(sessionId);
-        }
+// MCP endpoint - GET for SSE streams (return 405 - not supported in stateless mode)
+app.get("/mcp", (_req, res) => {
+    res.status(405).set("Allow", "POST").send("Method Not Allowed");
+});
+// MCP endpoint - DELETE for session termination
+app.delete("/mcp", (req, res) => {
+    const sessionId = req.headers["mcp-session-id"];
+    if (sessionId && transports[sessionId]) {
+        transports[sessionId].transport.close();
+        delete transports[sessionId];
     }
-}, 60000);
+    res.status(200).end();
+});
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Linear SQLite MCP Server running on http://localhost:${PORT}/mcp`);
 });
-export { server };
+// Handle server shutdown
+process.on("SIGINT", async () => {
+    console.log("Shutting down server...");
+    for (const { transport } of Object.values(transports)) {
+        await transport.close();
+    }
+    process.exit(0);
+});
 //# sourceMappingURL=index.js.map

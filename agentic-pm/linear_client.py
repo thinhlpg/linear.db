@@ -1,16 +1,40 @@
-"""Linear DB MCP Client - HTTP transport."""
+"""Linear DB MCP Client - HTTP transport with persistent connection."""
 import httpx
 from typing import Any
 from loguru import logger
 
 
 class LinearDBClient:
-    """Client for Linear DB MCP server."""
+    """Client for Linear DB MCP server with persistent HTTP connection."""
     
     def __init__(self, base_url: str = "http://localhost:3335/mcp"):
         self.base_url = base_url
         self.session_id: str | None = None
         self._request_id = 0
+        self._client: httpx.AsyncClient | None = None
+    
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create persistent HTTP client."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=30.0)
+        return self._client
+    
+    async def close(self) -> None:
+        """Close the HTTP client connection."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+    
+    async def health_check(self) -> bool:
+        """Check if server is reachable."""
+        try:
+            client = await self._get_client()
+            health_url = self.base_url.replace("/mcp", "/health")
+            response = await client.get(health_url)
+            return response.status_code == 200
+        except Exception as e:
+            logger.debug(f"Health check failed: {e}")
+            return False
     
     async def _request(self, method: str, params: dict | None = None) -> dict:
         """Send JSON-RPC request to Linear DB MCP server."""
@@ -30,17 +54,37 @@ class LinearDBClient:
             "params": params or {},
         }
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        client = await self._get_client()
+        
+        try:
             response = await client.post(self.base_url, json=payload, headers=headers)
-            
-            # Capture session ID from response
-            if "mcp-session-id" in response.headers:
-                self.session_id = response.headers["mcp-session-id"]
-            
+        except httpx.ConnectError as e:
+            raise Exception(f"Cannot connect to MCP server at {self.base_url}: {e}")
+        except httpx.TimeoutException as e:
+            raise Exception(f"Request timeout: {e}")
+        
+        # Capture session ID from response
+        if "mcp-session-id" in response.headers:
+            self.session_id = response.headers["mcp-session-id"]
+        
+        # Check HTTP status before parsing JSON
+        if response.status_code >= 400:
+            error_text = response.text[:200] if response.text else "No error details"
+            raise Exception(f"HTTP {response.status_code}: {error_text}")
+        
+        # Handle empty responses
+        if not response.content:
+            raise Exception("Empty response from server")
+        
+        # Parse JSON response
+        try:
             data = response.json()
-            if "error" in data:
-                raise Exception(f"MCP Error: {data['error']}")
-            return data.get("result", {})
+        except Exception as e:
+            raise Exception(f"Invalid JSON response: {response.text[:200]}")
+        
+        if "error" in data:
+            raise Exception(f"MCP Error: {data['error']}")
+        return data.get("result", {})
     
     async def initialize(self) -> None:
         """Initialize MCP session."""

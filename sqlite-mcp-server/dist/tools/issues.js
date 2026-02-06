@@ -241,7 +241,8 @@ export function registerIssueTools(registerHandler) {
         if (args.state !== undefined) {
             const issue = await getOne(`SELECT team_id FROM issues WHERE id = ?`, [issueId]);
             if (issue?.team_id) {
-                const status = await getOne(`SELECT id FROM issue_statuses WHERE team_id = ? AND (name = ? OR id = ? OR type = ?)`, [issue.team_id, args.state, args.state, args.state]);
+                // Search team-specific statuses first, then global statuses (team_id IS NULL)
+                const status = await getOne(`SELECT id FROM issue_statuses WHERE (team_id = ? OR team_id IS NULL) AND (name = ? OR id = ? OR type = ?) ORDER BY team_id DESC NULLS LAST`, [issue.team_id, args.state, args.state, args.state]);
                 if (status) {
                     updates.push('status_id = ?');
                     params.push(status.id);
@@ -253,12 +254,8 @@ export function registerIssueTools(registerHandler) {
             updates.push('assignee_id = ?');
             params.push(userId);
         }
-        if (updates.length === 0)
-            return success({ message: "No updates provided" });
-        updates.push('updated_at = ?');
-        params.push(new Date().toISOString());
-        params.push(issueId);
-        await run(`UPDATE issues SET ${updates.join(', ')} WHERE id = ?`, params);
+        // Handle labels separately (not part of main issues table update)
+        let labelsUpdated = false;
         if (args.labels !== undefined) {
             await run(`DELETE FROM issue_labels WHERE issue_id = ?`, [issueId]);
             const issue = await getOne(`SELECT team_id FROM issues WHERE id = ?`, [issueId]);
@@ -267,6 +264,15 @@ export function registerIssueTools(registerHandler) {
                 if (labelId)
                     await run(`INSERT INTO issue_labels (issue_id, label_id) VALUES (?, ?)`, [issueId, labelId]);
             }
+            labelsUpdated = true;
+        }
+        if (updates.length === 0 && !labelsUpdated)
+            return success({ message: "No updates provided" });
+        if (updates.length > 0) {
+            updates.push('updated_at = ?');
+            params.push(new Date().toISOString());
+            params.push(issueId);
+            await run(`UPDATE issues SET ${updates.join(', ')} WHERE id = ?`, params);
         }
         return success({ id: issueId, message: "Issue updated" });
     });
