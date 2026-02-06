@@ -1,8 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { Request, Response } from "express";
+import express, { Request, Response } from "express";
 import { randomUUID } from "crypto";
 import { initializeDatabase } from "./schema.js";
 
@@ -84,41 +83,56 @@ function createServer(): Server {
   return server;
 }
 
-// Create Express app with DNS rebinding protection
-const app = createMcpExpressApp();
+// Create Express app
+const app = express();
+app.use(express.json());
 
 // Health check endpoint
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", server: "linear-sqlite-mcp" });
 });
 
-// Session management - store transports by session ID
-const transports: Record<string, { transport: StreamableHTTPServerTransport; server: Server }> = {};
+// Session management - store transports and servers by session ID
+const sessions: Map<string, { transport: StreamableHTTPServerTransport; server: Server }> = new Map();
 
 // MCP endpoint - POST for client-to-server messages
 app.post("/mcp", async (req: Request, res: Response) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
   try {
-    // Reuse existing session if available
-    if (sessionId && transports[sessionId]) {
-      await transports[sessionId].transport.handleRequest(req, res, req.body);
+    // Check if we have an existing session
+    if (sessionId) {
+      const session = sessions.get(sessionId);
+      if (session) {
+        // Reuse existing session
+        await session.transport.handleRequest(req, res, req.body);
+        return;
+      }
+      // Session ID provided but not found - return 404 per spec
+      res.status(404).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "Session not found" },
+        id: null,
+      });
       return;
     }
 
-    // Create new session for any request (auto-initialize mode)
+    // No session ID - this should be an initialize request
+    // Create new transport and server
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       enableJsonResponse: true,
-      onsessioninitialized: (sid) => {
-        transports[sid] = { transport, server };
+      onsessioninitialized: (newSessionId: string) => {
+        console.log(`Session initialized: ${newSessionId}`);
+        sessions.set(newSessionId, { transport, server });
       },
     });
 
     transport.onclose = () => {
       const sid = transport.sessionId;
-      if (sid && transports[sid]) {
-        delete transports[sid];
+      if (sid) {
+        console.log(`Session closed: ${sid}`);
+        sessions.delete(sid);
       }
     };
 
@@ -137,32 +151,64 @@ app.post("/mcp", async (req: Request, res: Response) => {
   }
 });
 
-// MCP endpoint - GET for SSE streams (return 405 - not supported in stateless mode)
-app.get("/mcp", (_req: Request, res: Response) => {
-  res.status(405).set("Allow", "POST").send("Method Not Allowed");
+// MCP endpoint - GET for SSE streams
+app.get("/mcp", async (req: Request, res: Response) => {
+  const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  
+  if (!sessionId) {
+    res.status(400).json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Bad Request: Mcp-Session-Id header is required" },
+      id: null,
+    });
+    return;
+  }
+  
+  const session = sessions.get(sessionId);
+  if (!session) {
+    res.status(404).json({
+      jsonrpc: "2.0",
+      error: { code: -32001, message: "Session not found" },
+      id: null,
+    });
+    return;
+  }
+  
+  await session.transport.handleRequest(req, res);
 });
 
 // MCP endpoint - DELETE for session termination
-app.delete("/mcp", (req: Request, res: Response) => {
+app.delete("/mcp", async (req: Request, res: Response) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  if (sessionId && transports[sessionId]) {
-    transports[sessionId].transport.close();
-    delete transports[sessionId];
+  
+  if (sessionId) {
+    const session = sessions.get(sessionId);
+    if (session) {
+      await session.transport.close();
+      sessions.delete(sessionId);
+      console.log(`Session terminated: ${sessionId}`);
+    }
   }
   res.status(200).end();
 });
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Linear SQLite MCP Server running on http://localhost:${PORT}/mcp`);
+  console.log(`Protocol: Streamable HTTP (MCP 2025-06-18 spec)`);
 });
 
 // Handle server shutdown
 process.on("SIGINT", async () => {
-  console.log("Shutting down server...");
-  for (const { transport } of Object.values(transports)) {
-    await transport.close();
+  console.log("\nShutting down server...");
+  for (const [sessionId, session] of sessions) {
+    console.log(`Closing session: ${sessionId}`);
+    await session.transport.close();
   }
-  process.exit(0);
+  sessions.clear();
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
 });

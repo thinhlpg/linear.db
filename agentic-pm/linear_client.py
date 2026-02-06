@@ -1,15 +1,26 @@
-"""Linear DB MCP Client - HTTP transport with persistent connection."""
+"""Linear DB MCP Client - Streamable HTTP transport (MCP 2025-06-18 spec)."""
 import httpx
 from typing import Any
 from loguru import logger
 
 
+# MCP Protocol version - use the latest supported by the SDK
+MCP_PROTOCOL_VERSION = "2024-11-05"
+
+
 class LinearDBClient:
-    """Client for Linear DB MCP server with persistent HTTP connection."""
+    """Client for Linear DB MCP server with Streamable HTTP transport.
+    
+    Implements MCP Streamable HTTP transport specification:
+    - Session management via Mcp-Session-Id header
+    - Protocol version via MCP-Protocol-Version header
+    - JSON response mode (enableJsonResponse: true on server)
+    """
     
     def __init__(self, base_url: str = "http://localhost:3335/mcp"):
         self.base_url = base_url
         self.session_id: str | None = None
+        self._initialized: bool = False
         self._request_id = 0
         self._client: httpx.AsyncClient | None = None
     
@@ -20,10 +31,23 @@ class LinearDBClient:
         return self._client
     
     async def close(self) -> None:
-        """Close the HTTP client connection."""
+        """Close the HTTP client connection and terminate session."""
+        if self.session_id and self._client and not self._client.is_closed:
+            # Send DELETE to terminate session per spec
+            try:
+                await self._client.delete(
+                    self.base_url,
+                    headers={"mcp-session-id": self.session_id}
+                )
+            except Exception:
+                pass  # Ignore errors during cleanup
+        
         if self._client and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
+        
+        self.session_id = None
+        self._initialized = False
     
     async def health_check(self) -> bool:
         """Check if server is reachable."""
@@ -37,15 +61,28 @@ class LinearDBClient:
             return False
     
     async def _request(self, method: str, params: dict | None = None) -> dict:
-        """Send JSON-RPC request to Linear DB MCP server."""
+        """Send JSON-RPC request to Linear DB MCP server.
+        
+        Per MCP Streamable HTTP spec:
+        - Client MUST include Accept header with both application/json and text/event-stream
+        - Client MUST include Mcp-Session-Id header on all requests after initialization
+        - Client MUST include MCP-Protocol-Version header on all requests after initialization
+        """
         self._request_id += 1
         
+        # Build headers per MCP spec
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
         }
+        
+        # Include session ID on all requests after initialization
         if self.session_id:
             headers["mcp-session-id"] = self.session_id
+        
+        # Include protocol version on all requests after initialization
+        if self._initialized:
+            headers["MCP-Protocol-Version"] = MCP_PROTOCOL_VERSION
         
         payload = {
             "jsonrpc": "2.0",
@@ -63,14 +100,27 @@ class LinearDBClient:
         except httpx.TimeoutException as e:
             raise Exception(f"Request timeout: {e}")
         
-        # Capture session ID from response
+        # Capture session ID from response (set during initialization)
         if "mcp-session-id" in response.headers:
-            self.session_id = response.headers["mcp-session-id"]
+            new_session_id = response.headers["mcp-session-id"]
+            if self.session_id is None:
+                logger.debug(f"Session established: {new_session_id}")
+            self.session_id = new_session_id
         
-        # Check HTTP status before parsing JSON
+        # Handle HTTP errors per spec
+        if response.status_code == 404:
+            # Session not found - need to re-initialize
+            self.session_id = None
+            self._initialized = False
+            raise Exception("Session not found - need to re-initialize")
+        
         if response.status_code >= 400:
-            error_text = response.text[:200] if response.text else "No error details"
+            error_text = response.text[:500] if response.text else "No error details"
             raise Exception(f"HTTP {response.status_code}: {error_text}")
+        
+        # Handle 202 Accepted (for notifications/responses)
+        if response.status_code == 202:
+            return {}
         
         # Handle empty responses
         if not response.content:
@@ -87,13 +137,20 @@ class LinearDBClient:
         return data.get("result", {})
     
     async def initialize(self) -> None:
-        """Initialize MCP session."""
-        await self._request("initialize", {
-            "protocolVersion": "2024-11-05",
+        """Initialize MCP session.
+        
+        Per MCP spec:
+        - First request must be 'initialize' without session ID
+        - Server responds with session ID in Mcp-Session-Id header
+        - Client must include session ID in all subsequent requests
+        """
+        result = await self._request("initialize", {
+            "protocolVersion": MCP_PROTOCOL_VERSION,
             "capabilities": {},
             "clientInfo": {"name": "agentic-pm", "version": "1.0.0"}
         })
-        logger.info(f"Connected to Linear DB, session: {self.session_id}")
+        self._initialized = True
+        logger.info(f"MCP initialized - session: {self.session_id}, protocol: {MCP_PROTOCOL_VERSION}")
     
     async def call_tool(self, name: str, arguments: dict) -> dict:
         """Call an MCP tool."""
