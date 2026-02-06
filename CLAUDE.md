@@ -81,6 +81,28 @@ Blocked by: [implementation issue ID]
 - Check responsive behavior
 - Screenshot failures for bug reports
 
+#### 🔴 CRITICAL: Fix Until All Tests Pass
+```
+LOOP:
+  1. Tester runs Playwright tests
+  2. If ANY test fails:
+     - Tester creates BUG issue with EXACT failure details:
+       - Screenshot of failure
+       - Element selector that failed
+       - Expected vs Actual behavior
+       - File and line to fix (if known)
+     - Developer fixes the bug
+     - Developer marks BUG issue "Done"
+     - GOTO step 1 (re-test)
+  3. If ALL tests pass:
+     - Tester marks TEST issue "Done"
+     - Feature is complete
+END LOOP
+```
+
+**The agent MUST NOT stop until Tester confirms ALL PASS.**
+**Tester MUST pinpoint exactly what/where to fix.**
+
 ### Issue Structure with Testing
 ```
 Project: "Feature Name"
@@ -95,6 +117,47 @@ Project: "Feature Name"
 
 **DO NOT start coding without creating issues first. Track ALL work in Linear DB.**
 **DO NOT mark feature "Complete" until Tester has verified with Playwright.**
+
+---
+
+## 🤖 Jan API Configuration (For Chat UI Demo)
+
+Use this API to make the chat UI functional:
+
+```
+API Base URL: https://api.jan.ai
+API Key: Set via JAN_API_KEY environment variable
+```
+
+### Example Chat Completion Request
+```bash
+curl https://api.jan.ai/v1/chat/completions \
+  -H "Authorization: Bearer $JAN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": true
+  }'
+```
+
+### JavaScript Fetch Example
+```javascript
+const response = await fetch('https://api.jan.ai/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${JAN_API_KEY}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: userMessage }],
+    stream: true
+  })
+});
+```
+
+**The chat UI MUST be functional - messages must get real AI responses.**
 
 ---
 
