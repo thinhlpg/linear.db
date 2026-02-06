@@ -19,6 +19,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. AFTER coding: Mark issues as Done, add comments if needed
 ```
 
+## 🔴 MANDATORY: Real-Time Linear Updates (NON-NEGOTIABLE)
+
+**You MUST update Linear status at EVERY checkpoint. No exceptions.**
+
+### Required Update Triggers
+
+| Trigger | Action | Linear Tool Call |
+|---------|--------|------------------|
+| **Starting ANY issue** | Set status to "In Progress" | `update_issue(id, status="In Progress")` |
+| **Switching to different issue** | Mark current "Paused", new one "In Progress" | Two `update_issue` calls |
+| **Code compiles/runs** | Add comment with progress | `add_comment(issue_id, "Progress: X complete")` |
+| **Implementation complete** | Set status to "Done" | `update_issue(id, status="Done")` |
+| **Tests pass** | Set status to "Complete" | `update_issue(id, status="Complete")` |
+| **Blocked by error** | Add comment with blocker | `add_comment(issue_id, "Blocked: [error]")` |
+
+### Enforcement Rules
+
+```
+🚨 BEFORE writing ANY code for an issue:
+   → FIRST call: update_issue(issue_id, status="In Progress", assignee="me")
+   
+🚨 AFTER completing implementation:
+   → IMMEDIATELY call: update_issue(issue_id, status="Done")
+   
+🚨 IF switching tasks mid-work:
+   → Call: update_issue(current_id, status="Paused")
+   → Call: update_issue(new_id, status="In Progress")
+```
+
+### Status Flow
+```
+Backlog → Todo → In Progress → Done → [Testing] → Complete
+                     ↓
+                  Paused (if switching)
+                     ↓
+               In Progress (when resuming)
+```
+
+### WHY This Matters
+- **Visibility**: Team can see real progress without checking Cursor
+- **Coordination**: Other agents know what's being worked on
+- **History**: Creates audit trail of work done
+- **Blockers**: Issues surface immediately
+
+**VIOLATION: If you code without updating Linear first, STOP and update Linear before continuing.**
+
 ### Required MCP Tools Usage
 | Action | Tool | Example |
 |--------|------|---------|
